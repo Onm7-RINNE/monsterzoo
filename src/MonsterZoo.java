@@ -1,117 +1,100 @@
+package monsterzoo;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.stream.IntStream;
 
+//モンスターズーに関する処理前半を行う
 public class MonsterZoo {
-	double distance=0.0;//歩いた距離
-	int balls=10;//モンスターを捕まえられるボールの数
-	int fruits=0;//ぶつけるとモンスターが捕まえやすくなるフルーツ
+    Item item = new Item();
+    Distance distance = new Distance();
+    Monster monster = new Monster();
+    Egg egg = new Egg();
 
-	//卵は最大9個まで持てる．卵を取得するとeggにtrueが代入され，
-	//移動するたびに,eggDistanceに1.0kmずつ加算される．
-	//3km移動するとランダムでモンスターが孵る
-	double eggDistance[] = new double[9];
-	boolean egg[] = new boolean[9];
 
-	//ユーザがGetしたモンスター一覧
-	String userMonster[] = new String[100];
+    //モンスターズーをプレイし、ボールがなくなったら捕まえたモンスターのリストを返す処理
+    ArrayList<String> play(){
+        Boolean existBalls = true; //ボールがあるかどうかの判定を入れる変数
+		monster.registerMonsterZukan();    //モンスター図鑑に登録する処理
 
-	//モンスター図鑑．モンスターの名前とレア度(0.0~9.0)がそれぞれの配列に保存されている
-	//レア度が高いほうが捕まえにくい
-	String monsterZukan[] = new String[22];
-	double monsterRare[] = new double[22];
+        while(existBalls){ //1000ミリ秒（1秒）ずつ止まりながらpz.move()を呼び出し続け、手持ちのボールが無くなったら終了
+			try {
+				Thread.sleep(1000);
+                this.move();
+                item.printItems();
+	            distance.printDistance();
+                existBalls = item.existBalls();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+        return monster.userMonster;
+    }
 
-	//呼び出すと1km distanceが増える
+
+	//呼び出すと1km distanceとeggDistaceが増える
 	void move(){
-		this.distance++;
-		for(int i=0;i<this.egg.length;i++){//卵は移動距離が進むと孵化するため，何km移動したかを更新する
-			if(this.egg[i]==true){
-				this.eggDistance[i]++;
-			}
-		}
+		distance.updateDistance();
+		egg.updateEggDistance();
 
-		int flg1 = (int)(Math.random()*10);//0,1の場合はズーstation，7~9の場合はモンスター
-		if(flg1<=1){
-			System.out.println("ズーstationを見つけた！");
-			int b=(int)(Math.random()*3);//ball,fruits,eggがランダムに出る
-			int f=(int)(Math.random()*2);
-			int e=(int)(Math.random()*2);
-			System.out.println("ボールを"+b+"個，"+"フルーツを"+f+"個"+"卵を"+e+"個Getした！");
-			this.balls=this.balls+b;
-			this.fruits=this.fruits+f;
-			if(e>=1){//卵を1つ以上Getしたら
-				//egg[]に10個以上卵がない場合は新しい卵データをセットする
-				for(int i=0;i<this.eggDistance.length;i++){
-					if(this.egg[i]==false){
-						this.egg[i]=true;
-						this.eggDistance[i]=0.0;
-						break;
-					}
-				}
-			}
-		}else if(flg1>=7){
-			int m = (int)(this.monsterZukan.length*Math.random());//monsterZukanからランダムにモンスターを出す
-			System.out.println(this.monsterZukan[m]+"が現れた！");
-			for(int i=0;i<3&&this.balls>0;i++){//捕まえる or 3回ボールを投げるまで繰り返す
-				int r = (int)(6*Math.random());//0~5までの数字をランダムに返す
-				if(this.fruits>0){
-					System.out.println("フルーツを投げた！捕まえやすさが倍になる！");
-					this.fruits--;
-					r = r * 2;
-				}
-				System.out.println(this.monsterZukan[m]+"にボールを投げた");
-				this.balls--;
-				if(this.monsterRare[m]<=r){//monsterRare[m]の値がr以下の場合
-					System.out.println(this.monsterZukan[m]+"を捕まえた！");
-					for(int j=0;j<userMonster.length;j++){
-						if(this.userMonster[j]==null){
-							this.userMonster[j]=this.monsterZukan[m];
-							break;
-						}
-					}
-					break;//ボール投げ終了
-				}else{
-					System.out.println(this.monsterZukan[m]+"に逃げられた！");
-				}
-			}
-		}
-		for(int i=0;i<this.egg.length;i++){
-			if(this.egg[i]==true&&this.eggDistance[i]>=3){
-				System.out.println("卵が孵った！");
-				int m = (int)(this.monsterZukan.length*Math.random());
-				System.out.println(this.monsterZukan[m]+"が産まれた！");
-
-				for(int j=0;j<userMonster.length;j++){
-					if(this.userMonster[j]==null){
-						this.userMonster[j]=this.monsterZukan[m];
-						break;
-					}
-				}
-				this.egg[i]=false;
-				this.eggDistance[i]=0.0;
-			}
-		}
+		int flg1 = this.randomSelect(10);//0,1の場合はズーstation，7~9の場合はモンスター
+		if(flg1 <= 1)
+			this.zooStation();
+		else if(flg1 >= 7)
+			this.encountMonster();
+		egg.eggsState(monster.monsterZukan,monster.userMonster); //卵の状態を確認する
 	}
 
-	public double getDistance() {
-		return distance;
-	}
 
-	public int getBalls() {
-		return balls;
-	}
+	//ズーstationでの処理  ボール、フルーツ、卵をゲットする可能性がある
+	void zooStation(){
+		int b,f,e;
+		System.out.println("ズーstationを見つけた！");
+		item.getItems(b=this.randomSelect(3),f=this.randomSelect(2));
+		e=this.randomSelect(2);
+		System.out.println("ボールを"+b+"個，"+"フルーツを"+f+"個，"+"卵を"+e+"個Getした！");
+		if(e >= 1 && egg.egg.size() < 10) egg.setEgg();
+    }
 
-	public int getFruits() {
-		return fruits;
-	}
 
-	public String[] getUserMonster() {
-		return userMonster;
-	}
+	//モンスターが出現する時の処理
+    void encountMonster(){
+    	//nowSituationは0番目に戦闘を続行するか、1番目にモンスターをゲットしたかを保持している
+    	ArrayList <Boolean> nowSituation = new ArrayList<Boolean>(Arrays.asList(true,false));
+        int m = this.randomSelect(monster.monsterZukan.size());//monsterZukanからランダムにモンスターを出す
 
-	public void setMonsterZukan(String[] monsterZukan) {
-		this.monsterZukan = monsterZukan;
-	}
+        String monsterName = monster.monsterZukan.get(m).tempMonster; //1行が長くなるので変数に入れる
+        System.out.println(monsterName+"が現れた！");
 
-	public void setMonsterRare(double[] monsterRare) {
-		this.monsterRare = monsterRare;
+        //捕まえる or 3回ボールを投げるまで繰り返す
+        IntStream.range(0, item.balls)
+        .filter(i -> (i < 3 && nowSituation.get(0)))
+        .forEach(i -> {
+        	int r = rProbabilitySelect();
+            item.throwBalls(monsterName);
+            if(monster.monsterZukan.get(m).tempMonsterRare<=r){//monsterRare[m]の値がr以下の場合モンスターをゲットできる
+            	monster.getMonster(monsterName);
+            	IntStream.range(0, nowSituation.size()).forEach(j -> nowSituation.set(j,!nowSituation.get(j)));
+            }
+        });
+
+        //モンスターを捕まえられなかった時の処理
+        if(!nowSituation.get(1))
+        	System.out.println(monsterName+"に逃げられた！");
+
+    }
+
+
+    //ランダムでモンスターが捕まえられる確率を返す処理
+    private int rProbabilitySelect() {
+    	int r = this.randomSelect(6);//0~5までの数字をランダムに返す
+    	if(item.fruits>0) r = item.throwFruits(r);
+    	return r;
+    }
+
+
+    //ランダムで数字を選ぶ処理
+	int randomSelect(int num){
+		return (int)(num*Math.random());
 	}
 }
